@@ -16,6 +16,7 @@ concurrency:
 
 env:
   THEOS: ${{ github.workspace }}/.theos
+  LDID_VERSION: v2.1.5-procursus7
 
 jobs:
   build:
@@ -39,7 +40,14 @@ jobs:
           set -euo pipefail
           sudo apt-get update -qq
           sudo apt-get install -y -qq --no-install-recommends \
-            clang ldid dpkg fakeroot make git perl xz-utils file
+            clang dpkg fakeroot make git perl xz-utils file curl ca-certificates
+          # В ubuntu-26.04 пакета ldid нет — берём готовый бинарник у Procursus
+          if ! command -v ldid >/dev/null 2>&1; then
+            sudo curl -fsSL -o /usr/local/bin/ldid \
+              https://github.com/ProcursusTeam/ldid/releases/download/${LDID_VERSION}/ldid_linux_x86_64
+            sudo chmod +x /usr/local/bin/ldid
+          fi
+          ldid -v 2>&1 | head -n 1 || true
           if [ ! -d "$THEOS/makefiles" ]; then
             git clone --recursive --shallow-submodules --depth 1 \
               https://github.com/theos/theos.git "$THEOS"
@@ -68,13 +76,18 @@ jobs:
         if: always()
         run: |
           set -uo pipefail
-          shopt -s nullglob
-          for deb in out/*.deb; do
+          mapfile -t debs < <(find out -maxdepth 1 -name '*.deb' 2>/dev/null)
+          if [ "${#debs[@]}" -eq 0 ]; then
+            echo "::warning::ни одного .deb не собрано"
+            exit 0
+          fi
+          for deb in "${debs[@]}"; do
             echo "== $deb"
             dpkg-deb -c "$deb" | head -n 15
           done
-          if ls out/com.example.tweaklab_*.deb >/dev/null 2>&1; then
-            if dpkg-deb -c out/com.example.tweaklab_*.deb \
+          tweak_deb="$(find out -maxdepth 1 -name 'com.example.tweaklab_*' -print -quit)"
+          if [ -n "$tweak_deb" ]; then
+            if dpkg-deb -c "$tweak_deb" \
                  | grep -q "var/jb/Library/MobileSubstrate/DynamicLibraries/TweakLab.dylib"; then
               echo "rootless layout OK: dylib внутри /var/jb"
             else
