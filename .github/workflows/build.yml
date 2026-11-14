@@ -40,18 +40,25 @@ jobs:
           set -euo pipefail
           sudo apt-get update -qq
           sudo apt-get install -y -qq --no-install-recommends \
-            clang dpkg fakeroot make git perl xz-utils file curl ca-certificates
-          # В ubuntu-26.04 пакета ldid нет — берём готовый бинарник у Procursus
+            build-essential fakeroot rsync curl perl zip git libxml2 libtinfo6 \
+            xz-utils file ca-certificates
+          # ldid: пакета нет в ubuntu-26.04 — берём готовый бинарник у Procursus
           if ! command -v ldid >/dev/null 2>&1; then
             sudo curl -fsSL -o /usr/local/bin/ldid \
               https://github.com/ProcursusTeam/ldid/releases/download/${LDID_VERSION}/ldid_linux_x86_64
             sudo chmod +x /usr/local/bin/ldid
           fi
-          ldid -v 2>&1 | head -n 1 || true
           if [ ! -d "$THEOS/makefiles" ]; then
             git clone --recursive --shallow-submodules --depth 1 \
               https://github.com/theos/theos.git "$THEOS"
           fi
+          # Кросс-тулчейн Linux -> iOS: Theos ищет его именно в toolchain/linux/iphone/bin
+          if [ ! -x "$THEOS/toolchain/linux/iphone/bin/clang" ]; then
+            mkdir -p "$THEOS/toolchain"
+            curl -sL https://github.com/L1ghtmann/llvm-project/releases/latest/download/iOSToolchain-x86_64.tar.xz \
+              | tar -xJf - -C "$THEOS/toolchain/"
+          fi
+          "$THEOS/toolchain/linux/iphone/bin/clang" --version | head -n 1
           echo "$THEOS/bin" >> "$GITHUB_PATH"
 
       - name: Install iOS SDK
