@@ -40,7 +40,7 @@ jobs:
           set -euo pipefail
           sudo apt-get update -qq
           sudo apt-get install -y -qq --no-install-recommends \
-            build-essential fakeroot rsync curl perl zip git libxml2 libtinfo6 \
+            build-essential fakeroot rsync curl perl zip git libtinfo6 \
             xz-utils file ca-certificates
           # ldid: пакета нет в ubuntu-26.04 — берём готовый бинарник у Procursus
           if ! command -v ldid >/dev/null 2>&1; then
