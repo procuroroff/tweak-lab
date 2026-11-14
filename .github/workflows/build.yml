@@ -19,9 +19,10 @@ env:
 
 jobs:
   build:
-    # macOS-раннер нужен из-за Xcode-тулчейна и dpkg/ldid из brew
-    runs-on: macos-14
-    timeout-minutes: 30
+    # Theos на Linux собирает iOS-твики тем же clang, что и на macOS:
+    # нужны ldid, dpkg-deb и fakeroot. ubuntu-раннеры доступнее и дешевле macOS.
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
 
     steps:
       - name: Checkout
@@ -31,16 +32,18 @@ jobs:
         uses: actions/cache@v4
         with:
           path: .theos
-          key: theos-${{ runner.os }}-${{ runner.arch }}-v1
+          key: theos-${{ runner.os }}-v2
 
       - name: Install Theos
         run: |
           set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq --no-install-recommends \
+            clang ldid dpkg fakeroot make git perl xz-utils file
           if [ ! -d "$THEOS/makefiles" ]; then
             git clone --recursive --shallow-submodules --depth 1 \
               https://github.com/theos/theos.git "$THEOS"
           fi
-          brew install ldid dpkg xz
           echo "$THEOS/bin" >> "$GITHUB_PATH"
 
       - name: Install iOS SDK
