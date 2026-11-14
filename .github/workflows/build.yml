@@ -1,0 +1,95 @@
+name: build
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  THEOS: ${{ github.workspace }}/.theos
+
+jobs:
+  build:
+    # macOS-раннер нужен из-за Xcode-тулчейна и dpkg/ldid из brew
+    runs-on: macos-14
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Cache Theos
+        uses: actions/cache@v4
+        with:
+          path: .theos
+          key: theos-${{ runner.os }}-${{ runner.arch }}-v1
+
+      - name: Install Theos
+        run: |
+          set -euo pipefail
+          if [ ! -d "$THEOS/makefiles" ]; then
+            git clone --recursive --shallow-submodules --depth 1 \
+              https://github.com/theos/theos.git "$THEOS"
+          fi
+          brew install ldid dpkg xz
+          echo "$THEOS/bin" >> "$GITHUB_PATH"
+
+      - name: Install iOS SDK
+        run: bash .github/scripts/install-sdk.sh "$THEOS/sdks"
+
+      - name: Build tweak
+        run: make package FINALPACKAGE=1
+
+      - name: Build demo app
+        working-directory: DemoApp
+        run: make package FINALPACKAGE=1
+
+      - name: Collect packages
+        if: always()
+        run: |
+          mkdir -p out
+          cp -v packages/*.deb out/ || true
+          cp -v DemoApp/packages/*.deb out/ || true
+          ls -lh out || true
+
+      - name: Verify package layout
+        if: always()
+        run: |
+          set -uo pipefail
+          shopt -s nullglob
+          for deb in out/*.deb; do
+            echo "== $deb"
+            dpkg-deb -c "$deb" | head -n 15
+          done
+          if ls out/com.example.tweaklab_*.deb >/dev/null 2>&1; then
+            if dpkg-deb -c out/com.example.tweaklab_*.deb \
+                 | grep -q "var/jb/Library/MobileSubstrate/DynamicLibraries/TweakLab.dylib"; then
+              echo "rootless layout OK: dylib внутри /var/jb"
+            else
+              echo "::warning::dylib не найден по пути /var/jb/... — проверьте THEOS_PACKAGE_SCHEME"
+            fi
+          fi
+
+      - name: Upload artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: deb-packages
+          path: out/*.deb
+          if-no-files-found: warn
+
+      - name: Release
+        if: startsWith(github.ref, 'refs/tags/') && success()
+        uses: softprops/action-gh-release@v2
+        with:
+          files: out/*.deb
+          generate_release_notes: true

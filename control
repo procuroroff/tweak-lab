@@ -1,0 +1,9 @@
+Package: com.example.tweaklab
+Name: TweakLab
+Version: 0.0.1
+Architecture: iphoneos-arm64
+Description: Educational lab: UIKit hierarchy hooks + NSURLSession/JSON interception + os_log tracing
+Maintainer: example
+Author: example
+Section: Tweaks
+Depends: mobilesubstrate

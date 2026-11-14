@@ -1,0 +1,9 @@
+Package: com.example.tweaklabdemo
+Name: TweakLab Demo
+Version: 0.0.1
+Architecture: iphoneos-arm64
+Description: Host application for the TweakLab tweak
+Maintainer: example
+Author: example
+Section: Applications
+Depends: firmware (>= 15.0)
