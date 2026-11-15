@@ -32,9 +32,11 @@ tweak-lab/
 
 ## Сборка через GitHub Actions
 
-Собирать локально на Windows нельзя: Theos требует macOS либо Linux с toolchain'ом. Поэтому
-сборка живёт в CI — GitHub даёт macOS-раннер с Xcode бесплатно (для публичных репозиториев;
-в приватных macOS-минуты расходуются с множителем ×10).
+Готовые пакеты: **<https://github.com/procuroroff/tweak-lab/releases/latest>**.
+
+Собирать локально на Windows нельзя: Theos требует macOS либо Linux с кросс-тулчейном. Сборка
+живёт в CI на `ubuntu-latest` — это дешевле и доступнее macOS-раннеров (у macOS-образов бывают
+ограничения по аккаунту), а результат тот же: clang из тулчейна + iOS SDK.
 
 ### 1. Залить проект в репозиторий
 
@@ -53,19 +55,25 @@ Workflow `.github/workflows/build.yml` запускается на `push`, `pull
 (`workflow_dispatch`) и на тег `v*`. Что он делает:
 
 1. клонирует `theos/theos` с сабмодулями в `.theos` и кэширует каталог между запусками;
-2. ставит `ldid`, `dpkg`, `xz` через brew;
-3. ставит iOS SDK из `theos/sdks` (sparse-клон, только 15.x/16.x — полный репозиторий весит
+2. ставит системные зависимости (`build-essential`, `fakeroot`, `perl`, `xz-utils`, ...) и
+   `ldid` — в ubuntu-26.04 пакета нет, поэтому бинарник берётся из релиза Procursus;
+3. распаковывает кросс-тулчейн `iOSToolchain-x86_64` в `$THEOS/toolchain/` (Theos ищет clang
+   именно в `toolchain/linux/iphone/bin`);
+4. ставит iOS SDK из `theos/sdks` (sparse-клон, только 15.x/16.x — полный репозиторий весит
    слишком много);
-4. собирает твик: `make package FINALPACKAGE=1` -> `packages/com.example.tweaklab_*.deb`;
-5. собирает демо-приложение в `DemoApp/` -> `DemoApp/packages/com.example.tweaklabdemo_*.deb`;
-6. складывает оба `.deb` в артефакт `deb-packages`, а на теге ещё и в GitHub Release.
+5. собирает твик: `make package FINALPACKAGE=1` -> `packages/com.example.tweaklab_*.deb`;
+6. собирает демо-приложение в `DemoApp/` -> `DemoApp/packages/com.example.tweaklabdemo_*.deb`;
+7. проверяет, что в `.deb` dylib лежит по пути `/var/jb/...`;
+8. складывает оба `.deb` в артефакт `deb-packages`, а на теге ещё и в GitHub Release.
 
-Ручной запуск:
+Ручной запуск и выпуск версии:
 
 ```bash
 gh workflow run build
 gh run watch
 gh run download --name deb-packages --dir out
+
+git tag -a v0.0.1 -m "v0.0.1" && git push --follow-tags   # соберёт и опубликует Release
 ```
 
 ### 3. Установить на iPhone
